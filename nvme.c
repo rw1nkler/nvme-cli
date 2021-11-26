@@ -137,13 +137,17 @@ void *nvme_alloc(size_t len, bool *huge)
 {
 	void *p;
 
-	if (len < HUGE_MIN)
+	if (len < HUGE_MIN) {
+		printf("%s:%u: len < HUGE_MIN \n", __FUNCTION__, __LINE__);
 		return __nvme_alloc(len, huge);
-
+	}
 	p = get_hugepage_region(len, GHR_DEFAULT);
-	if (!p)
+	if (!p) {
+		printf("%s:%u: get_hugepage_region failed\n", __FUNCTION__, __LINE__);
 		return __nvme_alloc(len, huge);
+	}
 
+	printf("%s:%u: get_hugepage_region succeeded\n", __FUNCTION__, __LINE__);
 	*huge = true;
 	return p;
 }
@@ -5638,12 +5642,14 @@ static int submit_io(int opcode, char *command, const char *desc,
 		buffer_size = cfg.data_size;
 	}
 
+	printf("%s:%u: before allocation\n", __FUNCTION__, __LINE__);
 	buffer = nvme_alloc(buffer_size, &huge);
 	if (!buffer) {
 		perror("can not allocate io payload\n");
 		err = -ENOMEM;
 		goto close_mfd;
 	}
+	printf("%s:%u: after allocation\n", __FUNCTION__, __LINE__);
 
 	if (cfg.metadata_size) {
 		err = nvme_get_nsid(fd, &nsid);
@@ -5717,18 +5723,21 @@ static int submit_io(int opcode, char *command, const char *desc,
 		goto free_mbuffer;
 
 	gettimeofday(&start_time, NULL);
-	if (opcode & 1)
+	if (opcode & 1) {
 		err = nvme_write(fd, cfg.namespace_id, cfg.start_block,
 			cfg.block_count, control, dsmgmt, 0, cfg.ref_tag,
 			cfg.app_tag, cfg.app_tag_mask, cfg.storage_tag,
 			buffer_size, buffer, cfg.metadata_size, mbuffer,
 			NVME_DEFAULT_IOCTL_TIMEOUT);
-	else
+		printf("%s:%u: nvme_write, err = %d, errno = %d\n", __FUNCTION__, __LINE__, err, errno);
+	} else {
 		err = nvme_read(fd, cfg.namespace_id, cfg.start_block,
 			cfg.block_count, control, dsmgmt, cfg.ref_tag,
 			cfg.app_tag, cfg.app_tag_mask, cfg.storage_tag,
 			buffer_size, buffer, cfg.metadata_size, mbuffer,
 			NVME_DEFAULT_IOCTL_TIMEOUT);
+		printf("%s:%u: nvme_read, err = %d, errno = %d\n", __FUNCTION__, __LINE__, err, errno);
+	}
 	gettimeofday(&end_time, NULL);
 	if (cfg.latency)
 		printf(" latency: %s: %llu us\n",
